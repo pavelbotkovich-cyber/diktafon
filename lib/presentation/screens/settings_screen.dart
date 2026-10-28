@@ -16,6 +16,7 @@ import '../theme/tape_colors.dart';
 import '../widgets/content_width.dart';
 import '../widgets/directional_chevrons.dart';
 import '../widgets/ink_progress_bar.dart';
+import '../widgets/mac_settings_dialog.dart';
 import '../widgets/ink_toggle.dart';
 import '../widgets/settings_rows.dart';
 import 'backup_screen.dart';
@@ -112,6 +113,17 @@ class SettingsScreen extends ConsumerWidget {
                 _ => l10n.themeSystem,
               },
               onTap: () => _pickTheme(context, repo, settings),
+            ),
+          ]),
+          SettingsGroup(title: 'Отправка на Mac', rows: [
+            SettingsRow(
+              title: 'Сервер',
+              value: settings.macConfigured ? settings.macUrl : 'не настроено',
+              onTap: () => showDialog<bool>(
+                context: context,
+                builder: (_) =>
+                    MacSettingsDialog(repository: repo, settings: settings),
+              ),
             ),
           ]),
           SettingsGroup(title: l10n.groupYourData, rows: [

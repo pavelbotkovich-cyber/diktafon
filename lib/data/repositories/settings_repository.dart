@@ -10,6 +10,9 @@ class AppSettings {
     this.summariesEnabled = true,
     this.theme = 'system',
     this.firstRunDone = false,
+    this.macUrl = '',
+    this.macToken = '',
+    this.macPin = '',
   });
 
   /// Null → auto-detect per memo (D8), so one tape may mix languages; set →
@@ -26,6 +29,13 @@ class AppSettings {
   /// The first-run setup (§5.6) has been walked through (or skipped).
   final bool firstRunDone;
 
+  /// "Send to Mac" endpoint, bearer token and optional certificate pin.
+  final String macUrl;
+  final String macToken;
+  final String macPin;
+
+  bool get macConfigured => macUrl.trim().isNotEmpty && macToken.trim().isNotEmpty;
+
   static AppSettings fromRows(Map<String, String> rows) => AppSettings(
         appLanguage: rows['appLanguage'],
         chimeEnabled: rows['chimeEnabled'] != '0',
@@ -36,6 +46,9 @@ class AppSettings {
         // (§6.8 retired 2026-07-13); it is simply ignored.
         theme: rows['theme'] ?? 'system',
         firstRunDone: rows['firstRunDone'] == '1',
+        macUrl: rows['macUrl'] ?? '',
+        macToken: rows['macToken'] ?? '',
+        macPin: rows['macPin'] ?? '',
       );
 }
 
@@ -73,4 +86,7 @@ class SettingsRepository {
       _set('summariesEnabled', on ? '1' : '0');
   Future<void> setTheme(String theme) => _set('theme', theme);
   Future<void> setFirstRunDone() => _set('firstRunDone', '1');
+  Future<void> setMacUrl(String value) => _set('macUrl', value.trim());
+  Future<void> setMacToken(String value) => _set('macToken', value.trim());
+  Future<void> setMacPin(String value) => _set('macPin', value.trim());
 }

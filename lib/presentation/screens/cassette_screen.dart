@@ -14,6 +14,7 @@ import '../../domain/transcript_edit.dart';
 import '../../l10n/l10n.dart';
 import '../../services/audio/tape_player_service.dart';
 import '../../services/providers/transcription_provider.dart';
+import '../../services/remote/mac_remote.dart';
 import '../../services/system/system_settings.dart';
 import '../theme/tape_colors.dart';
 import '../theme/theme.dart';
@@ -23,9 +24,11 @@ import '../widgets/deck.dart';
 import '../widgets/directional_chevrons.dart';
 import '../widgets/edit_transcript_dialog.dart';
 import '../widgets/level_meter.dart';
+import '../widgets/mac_settings_dialog.dart';
 import '../widgets/timeline_bar.dart';
 import '../widgets/transcript_view.dart';
 import 'home_screen.dart';
+import 'remote_results_screen.dart';
 
 /// Cassette view — the core screen (§5.3, mockups 03/04): header, LCD
 /// counter, the timeline, the whole-tape transcript and the deck keys.
@@ -175,6 +178,7 @@ class _CassetteScreenState extends ConsumerState<CassetteScreen>
                   currentSeed: cassette.colorSeed,
                 ),
               'retranscribe' => _retranscribe(cassette, tape.memoCount),
+              'send' => _sendToMac(cassette, tape),
               _ => _deleteCassette(cassette, tape.memoCount),
             },
             itemBuilder: (_) => [
@@ -186,6 +190,10 @@ class _CassetteScreenState extends ConsumerState<CassetteScreen>
                   value: 'retranscribe',
                   enabled: !tape.isEmpty,
                   child: Text(context.l10n.retranscribe)),
+              PopupMenuItem(
+                  value: 'send',
+                  enabled: !tape.isEmpty,
+                  child: const Text('Отправить на Mac')),
               PopupMenuItem(
                   value: 'delete', child: Text(context.l10n.deleteCassette)),
             ],
@@ -512,6 +520,67 @@ class _CassetteScreenState extends ConsumerState<CassetteScreen>
         false;
     if (!confirmed) return;
     await ref.read(jobQueueProvider).retranscribeCassette(cassette.id);
+  }
+
+
+  Future<void> _sendToMac(Cassette cassette, Tape tape) async {
+    final repo = ref.read(settingsRepositoryProvider);
+    var settings = await repo.get();
+    if (!settings.macConfigured) {
+      if (!mounted) return;
+      final saved = await showDialog<bool>(
+        context: context,
+        builder: (_) => MacSettingsDialog(repository: repo, settings: settings),
+      );
+      if (saved != true || !mounted) return;
+      settings = await repo.get();
+      if (!settings.macConfigured) return;
+    }
+    if (!mounted) return;
+
+    final items = <({File file, String title})>[
+      for (var i = 0; i < tape.memos.length; i++)
+        (
+          file: File(tape.memos[i].filePath),
+          title: '${cassette.label ?? 'Кассета'} — запись ${i + 1}',
+        ),
+    ];
+
+    final progress = ValueNotifier<String>('Отправка 0 из ${items.length}');
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        content: ValueListenableBuilder<String>(
+          valueListenable: progress,
+          builder: (_, value, _) => Row(children: [
+            const SizedBox(
+                width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+            const SizedBox(width: 16),
+            Expanded(child: Text(value)),
+          ]),
+        ),
+      ),
+    );
+
+    final client = MacRemoteClient(MacRemoteConfig(
+      baseUrl: settings.macUrl,
+      token: settings.macToken,
+      pinSha256: settings.macPin,
+    ));
+    List<MacRemoteResult> results;
+    try {
+      results = await client.sendAll(items, onProgress: (done, total) {
+        progress.value = done < total
+            ? 'Отправка ${done + 1} из $total'
+            : 'Обработка на Mac…';
+      });
+    } finally {
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
+    }
+    if (!mounted) return;
+    await Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => RemoteResultsScreen(results: results)));
   }
 
   Future<void> _deleteCassette(Cassette cassette, int memoCount) async {
