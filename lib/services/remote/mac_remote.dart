@@ -138,6 +138,14 @@ class MacRemoteClient {
       } on SocketException catch (e) {
         results.add(MacRemoteResult(
             title: item.title, status: 'error', error: 'нет связи: ${e.message}'));
+      } on TlsException catch (e) {
+        results.add(MacRemoteResult(
+            title: item.title,
+            status: 'error',
+            error: 'сертификат не совпал с отпечатком: ${e.message}'));
+      } on HttpException catch (e) {
+        results.add(MacRemoteResult(
+            title: item.title, status: 'error', error: e.message));
       }
       onProgress?.call(i + 1, items.length);
     }
